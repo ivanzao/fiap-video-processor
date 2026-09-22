@@ -1,0 +1,8 @@
+go 1.27
+
+use (
+	./e2e
+	./services/video-processor-api
+	./services/video-processor-auth
+	./services/video-processor-worker
+)

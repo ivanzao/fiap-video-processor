@@ -1,0 +1,111 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - depguard
+    - errorlint
+    - gocritic
+    - misspell
+    - revive
+    - unconvert
+    - unparam
+  settings:
+    revive:
+      rules:
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
+    depguard:
+      rules:
+        domain:
+          files:
+            - "**/internal/domain/**"
+          deny:
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-api/internal/adapters
+              desc: the domain imports nothing else from the service
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-api/internal/platform
+              desc: the domain imports nothing else from the service
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-api/internal/app
+              desc: the domain imports nothing else from the service
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-api/internal/testinfra
+              desc: the domain imports nothing else from the service
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-worker/internal/adapters
+              desc: the domain imports nothing else from the service
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-worker/internal/platform
+              desc: the domain imports nothing else from the service
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-worker/internal/app
+              desc: the domain imports nothing else from the service
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-worker/internal/testinfra
+              desc: the domain imports nothing else from the service
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-auth/internal/adapters
+              desc: the domain imports nothing else from the service
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-auth/internal/platform
+              desc: the domain imports nothing else from the service
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-auth/internal/app
+              desc: the domain imports nothing else from the service
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-auth/internal/testinfra
+              desc: the domain imports nothing else from the service
+            - pkg: github.com/aws/aws-sdk-go-v2
+              desc: the domain must not depend on AWS adapters
+            - pkg: github.com/jackc/pgx
+              desc: the domain must not depend on database adapters
+            - pkg: net/http
+              desc: the domain must not depend on transport
+            - pkg: os/exec
+              desc: the domain must not depend on process execution
+        adapters:
+          files:
+            - "**/internal/adapters/**"
+            - "!**/*_test.go"
+          deny:
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-api/internal/adapters
+              desc: adapters talk to the domain and the platform, never to each other
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-worker/internal/adapters
+              desc: adapters talk to the domain and the platform, never to each other
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-auth/internal/adapters
+              desc: adapters talk to the domain and the platform, never to each other
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-api/internal/app
+              desc: adapters are composed by app, not the other way around
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-worker/internal/app
+              desc: adapters are composed by app, not the other way around
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-auth/internal/app
+              desc: adapters are composed by app, not the other way around
+        platform:
+          files:
+            - "**/internal/platform/**"
+          deny:
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-api/internal/adapters
+              desc: the platform knows no adapters
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-worker/internal/adapters
+              desc: the platform knows no adapters
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-auth/internal/adapters
+              desc: the platform knows no adapters
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-api/internal/app
+              desc: the platform knows no app
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-worker/internal/app
+              desc: the platform knows no app
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-auth/internal/app
+              desc: the platform knows no app
+        cmd:
+          files:
+            - "**/cmd/**"
+          deny:
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-api/internal/adapters
+              desc: binaries import only app and platform
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-worker/internal/adapters
+              desc: binaries import only app and platform
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-auth/internal/adapters
+              desc: binaries import only app and platform
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-api/internal/domain
+              desc: binaries import only app and platform
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-worker/internal/domain
+              desc: binaries import only app and platform
+            - pkg: github.com/ivanzao/fiap-video-processor/services/video-processor-auth/internal/domain
+              desc: binaries import only app and platform
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
