@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FIAP X · Video Processor</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='3' fill='%232b2b2e'/%3E%3Cg fill='%23141416'%3E%3Crect x='4' y='3' width='4' height='3'/%3E%3Crect x='11' y='3' width='4' height='3'/%3E%3Crect x='18' y='3' width='4' height='3'/%3E%3Crect x='25' y='3' width='4' height='3'/%3E%3Crect x='4' y='26' width='4' height='3'/%3E%3Crect x='11' y='26' width='4' height='3'/%3E%3Crect x='18' y='26' width='4' height='3'/%3E%3Crect x='25' y='26' width='4' height='3'/%3E%3C/g%3E%3Crect x='5' y='10' width='22' height='12' rx='1' fill='%23f4f2ec'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400;62..125,500;62..125,600;62..125,700&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <span class="mark">FIAP X · Video Processor</span>
+    <div id="session" hidden>
+      <span id="who"></span>
+      <button id="logout" type="button" class="link">Sair</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="auth" class="stage">
+      <form id="auth-form" class="frame auth" novalidate>
+        <div class="modes" role="tablist" aria-label="Entrar ou criar conta">
+          <button type="button" role="tab" data-mode="login" aria-selected="true">Entrar</button>
+          <button type="button" role="tab" data-mode="signup" aria-selected="false">Criar conta</button>
+        </div>
+        <h1 id="auth-title">Entrar</h1>
+        <p id="auth-hint">Envie vídeos e baixe os frames em um zip.</p>
+        <label>E-mail <input name="email" type="email" required autocomplete="username" spellcheck="false"></label>
+        <label><span id="password-label">Senha</span> <input name="password" type="password" required minlength="8" autocomplete="current-password"></label>
+        <button type="submit" id="auth-submit" data-label="Entrar" data-busy="Entrando…">Entrar</button>
+        <p class="busy" id="auth-busy" hidden><i></i><span>Aguardando o servidor. Nada aqui responde até ele voltar.</span></p>
+        <p class="feedback" id="auth-feedback" role="alert"></p>
+      </form>
+    </section>
+
+    <section id="app" hidden>
+      <h2 class="rule"><span>Meus vídeos</span><span id="freshness" aria-live="off"></span></h2>
+
+      <div class="grid" id="grid">
+        <form id="upload-form" class="frame cell new" data-state="idle">
+          <input id="file" type="file" accept=".mp4,.avi,.mov,.mkv,.wmv,.flv,.webm,video/*" hidden>
+
+          <label for="file" class="idle" tabindex="0">
+            <span class="plus" aria-hidden="true">+</span>
+            <b>Novo vídeo</b>
+            <span class="hint">Arraste aqui ou clique; o envio começa na hora. mp4, avi, mov, mkv, wmv, flv ou webm, até 500 MB.</span>
+          </label>
+
+          <div class="sending">
+            <span class="name" id="sending-name"></span>
+            <span class="meta" id="sending-step"></span>
+            <div class="bar"><i id="sending-bar"></i></div>
+          </div>
+
+          <p class="feedback" id="upload-feedback" role="alert"></p>
+        </form>
+      </div>
+
+      <p class="empty" id="empty" hidden>Nenhum vídeo ainda. Envie o primeiro no fotograma vazio.</p>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

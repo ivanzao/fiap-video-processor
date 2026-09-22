@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: video-processor-staging
+
+resources:
+  - ../../base
+
+patches:
+  - path: deployment-patch.yaml
+  - path: configmap-patch.yaml
+  - target:
+      kind: Service
+      name: video-processor-api
+    path: nodeport-patch.yaml
+  - target:
+      kind: ExternalSecret
+      name: video-processor-api
+    path: externalsecret-patch.yaml
+
+images:
+  - name: ghcr.io/ivanzao/video-processor-api
+    newTag: latest
