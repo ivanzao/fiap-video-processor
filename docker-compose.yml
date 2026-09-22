@@ -1,0 +1,183 @@
+services:
+  postgres-api:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app_api
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: video_processor_api
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_api -d video_processor_api"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  postgres-worker:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app_worker
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: video_processor_worker
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_worker -d video_processor_worker"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  postgres-auth:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app_auth
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: video_processor_auth
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_auth -d video_processor_auth"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  localstack:
+    image: localstack/localstack:4
+    environment:
+      SERVICES: s3,sns,sqs
+      AWS_DEFAULT_REGION: us-east-1
+    ports:
+      - "4566:4566"
+    volumes:
+      - ./deploy/local/localstack/init.sh:/etc/localstack/init/ready.d/init.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "awslocal sqs get-queue-url --queue-name video-processor-api-inbox"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+  migrate-api:
+    build: ./services/video-processor-api
+    command: ["migrate"]
+    environment:
+      DATABASE_URL: postgres://app_api:app@postgres-api:5432/video_processor_api?sslmode=disable
+      S3_BUCKET: video-processor
+      SNS_TOPIC_ARN: arn:aws:sns:us-east-1:000000000000:video-processor-api-events
+      SQS_QUEUE_URL: http://localstack:4566/000000000000/video-processor-api-inbox
+    depends_on:
+      postgres-api:
+        condition: service_healthy
+
+  migrate-worker:
+    build: ./services/video-processor-worker
+    command: ["migrate"]
+    environment:
+      DATABASE_URL: postgres://app_worker:app@postgres-worker:5432/video_processor_worker?sslmode=disable
+      S3_BUCKET: video-processor
+      SNS_TOPIC_ARN: arn:aws:sns:us-east-1:000000000000:video-processor-worker-events
+      SQS_QUEUE_URL: http://localstack:4566/000000000000/video-processor-worker-inbox
+      SMTP_ADDR: mailpit:1025
+    depends_on:
+      postgres-worker:
+        condition: service_healthy
+
+  worker:
+    build: ./services/video-processor-worker
+    environment:
+      DATABASE_URL: postgres://app_worker:app@postgres-worker:5432/video_processor_worker?sslmode=disable
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      S3_BUCKET: video-processor
+      SNS_TOPIC_ARN: arn:aws:sns:us-east-1:000000000000:video-processor-worker-events
+      SQS_QUEUE_URL: http://localstack:4566/000000000000/video-processor-worker-inbox
+      WORKER_CONCURRENCY: "2"
+      FRAME_RATE: "1"
+      SMTP_ADDR: mailpit:1025
+      MAIL_FROM: noreply@fiapx.local
+    depends_on:
+      migrate-worker:
+        condition: service_completed_successfully
+      localstack:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  migrate-auth:
+    build:
+      context: ./services/video-processor-auth
+      target: migrate
+    environment:
+      DATABASE_URL: postgres://app_auth:app@postgres-auth:5432/video_processor_auth?sslmode=disable
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+
+  auth:
+    build:
+      context: ./services/video-processor-auth
+      target: local
+    environment:
+      PORT: "8081"
+      DATABASE_URL: postgres://app_auth:app@postgres-auth:5432/video_processor_auth?sslmode=disable
+      JWT_SECRET: local-dev-secret-change-me
+      TOKEN_TTL: 12h
+    depends_on:
+      migrate-auth:
+        condition: service_completed_successfully
+
+  gateway:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./deploy/local/gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
+      - auth
+
+  api:
+    build: ./services/video-processor-api
+    environment:
+      PORT: "8080"
+      DATABASE_URL: postgres://app_api:app@postgres-api:5432/video_processor_api?sslmode=disable
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      S3_BUCKET: video-processor
+      SNS_TOPIC_ARN: arn:aws:sns:us-east-1:000000000000:video-processor-api-events
+      SQS_QUEUE_URL: http://localstack:4566/000000000000/video-processor-api-inbox
+      S3_PUBLIC_ENDPOINT: http://localhost:4566
+    depends_on:
+      migrate-api:
+        condition: service_completed_successfully
+      localstack:
+        condition: service_healthy
+
+  e2e:
+    image: golang:1.27-alpine
+    profiles: ["e2e"]
+    network_mode: host
+    working_dir: /src
+    environment:
+      GOFLAGS: -buildvcs=false
+    volumes:
+      - ./e2e:/src
+      - e2e-go-cache:/go/pkg/mod
+    command: ["go", "test", "-count=1", "-tags", "e2e", "-timeout", "10m", "./..."]
+    depends_on:
+      gateway:
+        condition: service_started
+      worker:
+        condition: service_started
+
+volumes:
+  e2e-go-cache:
