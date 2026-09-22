@@ -1,0 +1,21 @@
+name: video-processor-worker PR check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - services/video-processor-worker/**
+      - .golangci.yml
+      - .github/workflows/_service-ci.yaml
+      - .github/workflows/video-processor-worker-pr-check.yaml
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_service-ci.yaml
+    with:
+      service: video-processor-worker
+    secrets: inherit

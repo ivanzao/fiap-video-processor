@@ -1,0 +1,169 @@
+name: Deploy service to environment
+
+on:
+  workflow_call:
+    inputs:
+      service:
+        description: Service directory name under services/
+        required: true
+        type: string
+      short_name:
+        description: Service key in the Terraform registry (api, worker)
+        required: true
+        type: string
+      environment:
+        description: Target environment (staging, prod)
+        required: true
+        type: string
+      gh_environment:
+        description: GitHub Environment used for approvals
+        required: true
+        type: string
+      image_tag:
+        description: Image tag published by the build job
+        required: true
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_SESSION_TOKEN:
+        required: true
+      GHCR_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  AWS_REGION: us-east-1
+  PREFIX: /video-processor/${{ inputs.environment }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.gh_environment }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for an infra deploy of the same environment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          active() {
+            gh run list --repo "$GITHUB_REPOSITORY" --workflow infra-deploy.yaml --limit 10 --json databaseId,status \
+              --jq '.[] | select(.status != "completed") | .databaseId' | while read -r id; do
+              gh run view --repo "$GITHUB_REPOSITORY" "$id" --json status,jobs \
+                --jq "if (.jobs | length) == 0 then .status else .jobs[] | select((.name | startswith(\"$ENVIRONMENT\")) and .status != \"completed\") | .name end"
+            done
+          }
+          for i in $(seq 1 180); do
+            PENDING=$(active)
+            [ -z "$PENDING" ] && echo "no infra deploy running for $ENVIRONMENT" && exit 0
+            echo "attempt $i: waiting for infra deploy ($PENDING)"; sleep 30
+          done
+          echo "::error::infra deploy still running after 90 minutes"
+          exit 1
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: imranismail/setup-kustomize@v2
+
+      - name: Read environment parameters from SSM
+        id: ssm
+        run: |
+          get() { aws ssm get-parameter --name "$PREFIX/$1" --query Parameter.Value --output text; }
+          CLUSTER=$(get eks/cluster-name)
+          NAMESPACE=$(get namespace)
+          BUCKET=$(get s3/bucket)
+          TOPIC_ARN=$(get sns/${{ inputs.short_name }}-events-topic-arn)
+          QUEUE_URL=$(get sqs/${{ inputs.short_name }}-inbox-url)
+          APIGW=$(get apigw/endpoint)
+          NODE_PORT=$(get ${{ inputs.short_name }}/node-port 2>/dev/null || true)
+          {
+            echo "cluster=$CLUSTER"
+            echo "namespace=$NAMESPACE"
+            echo "bucket=$BUCKET"
+            echo "topic_arn=$TOPIC_ARN"
+            echo "queue_url=$QUEUE_URL"
+            echo "apigw=${APIGW%/}"
+            echo "node_port=$NODE_PORT"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Update kubeconfig and GHCR pull secret
+        run: |
+          aws eks update-kubeconfig --name "${{ steps.ssm.outputs.cluster }}" --region "$AWS_REGION"
+          kubectl -n "${{ steps.ssm.outputs.namespace }}" create secret docker-registry ghcr-pull-secret \
+            --docker-server=ghcr.io --docker-username="${{ github.repository_owner }}" --docker-password="${{ secrets.GHCR_TOKEN }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Rewrite overlay with runtime values
+        working-directory: services/${{ inputs.service }}/infra/k8s/overlays/${{ inputs.environment }}
+        run: |
+          cat > configmap-patch.yaml <<EOF
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: ${{ inputs.service }}-config
+          data:
+            S3_BUCKET: "${{ steps.ssm.outputs.bucket }}"
+            SNS_TOPIC_ARN: "${{ steps.ssm.outputs.topic_arn }}"
+            SQS_QUEUE_URL: "${{ steps.ssm.outputs.queue_url }}"
+          EOF
+          if [ -f nodeport-patch.yaml ]; then
+            cat > nodeport-patch.yaml <<EOF
+          - op: add
+            path: /spec/ports/0/nodePort
+            value: ${{ steps.ssm.outputs.node_port }}
+          EOF
+          fi
+          if [ -f scaledobject-patch.yaml ]; then
+            cat > scaledobject-patch.yaml <<EOF
+          - op: replace
+            path: /spec/triggers/0/metadata/queueURL
+            value: ${{ steps.ssm.outputs.queue_url }}
+          EOF
+          fi
+          kustomize edit set image ghcr.io/ivanzao/${{ inputs.service }}=ghcr.io/${{ github.repository_owner }}/${{ inputs.service }}:${{ inputs.image_tag }}
+
+      - name: Run migration job
+        run: |
+          NS=${{ steps.ssm.outputs.namespace }}
+          JOB=${{ inputs.service }}-migrate
+          kubectl kustomize services/${{ inputs.service }}/infra/k8s/overlays/${{ inputs.environment }} > rendered.yaml
+          yq 'select(.kind == "ExternalSecret")' rendered.yaml | kubectl apply -f -
+          kubectl -n "$NS" wait --for=condition=Ready externalsecret/${{ inputs.service }} --timeout=120s
+          kubectl -n "$NS" delete job "$JOB" --ignore-not-found --wait=true
+          yq 'select(.kind == "ConfigMap" or .kind == "Job")' rendered.yaml | kubectl apply -f -
+          if ! kubectl -n "$NS" wait --for=condition=complete "job/$JOB" --timeout=300s; then
+            echo "::error::migration job failed"
+            kubectl -n "$NS" logs "job/$JOB" --tail=80 || true
+            exit 1
+          fi
+          kubectl -n "$NS" logs "job/$JOB" --tail=20
+
+      - name: Apply overlay and wait for rollout
+        run: |
+          yq 'select(.kind != "Job")' rendered.yaml | kubectl apply -f -
+          kubectl -n "${{ steps.ssm.outputs.namespace }}" rollout status deployment/${{ inputs.service }} --timeout=300s
+
+      - name: Smoke test through the API Gateway
+        if: inputs.short_name == 'api'
+        run: |
+          for i in $(seq 1 12); do
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" "${{ steps.ssm.outputs.apigw }}/health")
+            [ "$CODE" = "200" ] && echo "health ok" && exit 0
+            echo "attempt $i: $CODE"; sleep 10
+          done
+          exit 1

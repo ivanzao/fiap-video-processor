@@ -1,0 +1,69 @@
+name: Service CI
+
+on:
+  workflow_call:
+    inputs:
+      service:
+        description: Service directory name under services/
+        required: true
+        type: string
+    secrets:
+      SONAR_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: services/${{ inputs.service }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/${{ inputs.service }}/go.mod
+          cache-dependency-path: services/${{ inputs.service }}/go.sum
+
+      - name: Install ffmpeg
+        if: inputs.service == 'video-processor-worker'
+        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
+
+      - run: go vet -tags integration ./...
+
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13.2
+          working-directory: services/${{ inputs.service }}
+          args: --config ../../.golangci.yml --build-tags integration
+
+      - name: Unit and integration tests with coverage
+        run: go test -race -count=1 -tags integration -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Sonar is configured
+        id: sonar
+        if: env.SONAR_TOKEN != ''
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: echo "enabled=true" >> "$GITHUB_OUTPUT"
+
+      - uses: SonarSource/sonarqube-scan-action@v5
+        if: steps.sonar.outputs.enabled == 'true'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: services/${{ inputs.service }}
+
+      - uses: SonarSource/sonarqube-quality-gate-action@v1
+        if: steps.sonar.outputs.enabled == 'true'
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          scanMetadataReportFile: services/${{ inputs.service }}/.scannerwork/report-task.txt

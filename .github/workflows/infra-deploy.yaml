@@ -1,0 +1,39 @@
+name: infra deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - infra/**
+      - .github/workflows/_terraform-apply.yaml
+      - .github/workflows/infra-deploy.yaml
+  workflow_dispatch:
+    inputs:
+      deploy_prod:
+        description: Also apply prod after staging (still gated by the production reviewer)
+        type: boolean
+        default: false
+
+concurrency:
+  group: infra-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  staging:
+    uses: ./.github/workflows/_terraform-apply.yaml
+    with:
+      root: staging
+      gh_environment: staging
+    secrets: inherit
+
+  prod:
+    needs: staging
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_prod
+    uses: ./.github/workflows/_terraform-apply.yaml
+    with:
+      root: prod
+      gh_environment: production
+    secrets: inherit

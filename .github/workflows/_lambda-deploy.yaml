@@ -1,0 +1,120 @@
+name: Deploy auth Lambdas to environment
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: Target environment (staging, prod)
+        required: true
+        type: string
+      gh_environment:
+        description: GitHub Environment used for approvals
+        required: true
+        type: string
+      image_tag:
+        description: Image tag published by the build job
+        required: true
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_SESSION_TOKEN:
+        required: true
+      GHCR_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  AWS_REGION: us-east-1
+  PREFIX: /video-processor/${{ inputs.environment }}
+  SERVICE: video-processor-auth
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.gh_environment }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for an infra deploy of the same environment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          active() {
+            gh run list --repo "$GITHUB_REPOSITORY" --workflow infra-deploy.yaml --limit 10 --json databaseId,status \
+              --jq '.[] | select(.status != "completed") | .databaseId' | while read -r id; do
+              gh run view --repo "$GITHUB_REPOSITORY" "$id" --json status,jobs \
+                --jq "if (.jobs | length) == 0 then .status else .jobs[] | select((.name | startswith(\"$ENVIRONMENT\")) and .status != \"completed\") | .name end"
+            done
+          }
+          for i in $(seq 1 180); do
+            PENDING=$(active)
+            [ -z "$PENDING" ] && echo "no infra deploy running for $ENVIRONMENT" && exit 0
+            echo "attempt $i: waiting for infra deploy ($PENDING)"; sleep 30
+          done
+          echo "::error::infra deploy still running after 90 minutes"
+          exit 1
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: imranismail/setup-kustomize@v2
+
+      - name: Read environment parameters from SSM
+        id: ssm
+        run: |
+          get() { aws ssm get-parameter --name "$PREFIX/$1" --query Parameter.Value --output text; }
+          CLUSTER=$(get eks/cluster-name)
+          NAMESPACE=$(get namespace)
+          ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          {
+            echo "cluster=$CLUSTER"
+            echo "namespace=$NAMESPACE"
+            echo "account=$ACCOUNT"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run migration job
+        run: |
+          aws eks update-kubeconfig --name "${{ steps.ssm.outputs.cluster }}" --region "$AWS_REGION"
+          NS=${{ steps.ssm.outputs.namespace }}
+          kubectl -n "$NS" create secret docker-registry ghcr-pull-secret \
+            --docker-server=ghcr.io --docker-username="${{ github.repository_owner }}" --docker-password="${{ secrets.GHCR_TOKEN }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          cd services/$SERVICE/infra/k8s/overlays/${{ inputs.environment }}
+          kustomize edit set image ghcr.io/ivanzao/$SERVICE-migrate=ghcr.io/${{ github.repository_owner }}/$SERVICE-migrate:${{ inputs.image_tag }}
+          kubectl kustomize . > rendered.yaml
+          yq 'select(.kind == "ExternalSecret")' rendered.yaml | kubectl apply -f -
+          kubectl -n "$NS" wait --for=condition=Ready externalsecret/$SERVICE --timeout=120s
+          kubectl -n "$NS" delete job $SERVICE-migrate --ignore-not-found --wait=true
+          yq 'select(.kind == "Job")' rendered.yaml | kubectl apply -f -
+          if ! kubectl -n "$NS" wait --for=condition=complete job/$SERVICE-migrate --timeout=300s; then
+            echo "::error::migration job failed"
+            kubectl -n "$NS" logs job/$SERVICE-migrate --tail=80 || true
+            exit 1
+          fi
+
+      - name: Warm the ECR pull-through cache and update the Lambdas
+        run: |
+          REGISTRY=${{ steps.ssm.outputs.account }}.dkr.ecr.$AWS_REGION.amazonaws.com
+          aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$REGISTRY"
+          for FN in signup login authorizer; do
+            IMAGE="$REGISTRY/ghcr-video-processor-${{ inputs.environment }}/${{ github.repository_owner }}/$SERVICE-$FN:${{ inputs.image_tag }}"
+            docker pull --platform linux/arm64 "$IMAGE" >/dev/null
+            NAME=$(aws ssm get-parameter --name "$PREFIX/lambda/$FN-function-name" --query Parameter.Value --output text)
+            aws lambda update-function-code --function-name "$NAME" --image-uri "$IMAGE" --publish >/dev/null
+            aws lambda wait function-updated --function-name "$NAME"
+            echo "$NAME -> $IMAGE"
+          done

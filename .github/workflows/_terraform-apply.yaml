@@ -1,0 +1,100 @@
+name: Terraform apply
+
+on:
+  workflow_call:
+    inputs:
+      root:
+        description: Directory under infra/environments (staging, prod)
+        required: true
+        type: string
+      gh_environment:
+        description: GitHub Environment used for approvals
+        required: true
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_SESSION_TOKEN:
+        required: true
+      GHCR_TOKEN:
+        required: false
+      MAILERSEND_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.gh_environment }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: infra/environments/${{ inputs.root }}
+    env:
+      TF_VAR_ghcr_token: ${{ secrets.GHCR_TOKEN }}
+      TF_VAR_mailersend_token: ${{ secrets.MAILERSEND_TOKEN }}
+      TF_VAR_mail_from: ${{ vars.MAIL_FROM }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.10"
+
+      - name: Ensure state bucket and init
+        id: init
+        run: |
+          BUCKET="video-processor-tfstate-$(aws sts get-caller-identity --query Account --output text)"
+          aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null || {
+            aws s3api create-bucket --bucket "$BUCKET" --region "$AWS_REGION"
+            aws s3api put-bucket-versioning --bucket "$BUCKET" --versioning-configuration Status=Enabled
+            aws s3api put-bucket-encryption --bucket "$BUCKET" \
+              --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+          }
+          echo "bucket=$BUCKET" >> "$GITHUB_OUTPUT"
+          terraform init -input=false -backend-config="bucket=${BUCKET}"
+
+      - name: Apply network, cluster and registry first
+        run: |
+          terraform apply -input=false -auto-approve \
+            -target=module.infra.module.vpc \
+            -target=module.infra.module.eks \
+            -target=module.infra.module.registry
+
+      - name: Create the application buckets the lab policy keeps Terraform from reading
+        run: |
+          ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          for BUCKET in "video-processor-${{ inputs.root }}-$ACCOUNT" "video-processor-tempo-${{ inputs.root }}-$ACCOUNT"; do
+            aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null || aws s3api create-bucket --bucket "$BUCKET" --region "$AWS_REGION"
+          done
+
+      - name: Create and seed the Lambda placeholder image
+        run: |
+          ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          REGISTRY="$ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com"
+          REPO=video-processor-lambda-placeholder
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
+            aws ecr create-repository --repository-name "$REPO" --image-tag-mutability MUTABLE >/dev/null
+          if ! aws ecr describe-images --repository-name "$REPO" --image-ids imageTag=bootstrap >/dev/null 2>&1; then
+            aws ecr get-login-password | docker login --username AWS --password-stdin "$REGISTRY"
+            docker pull --platform linux/arm64 public.ecr.aws/lambda/provided:al2023
+            docker tag public.ecr.aws/lambda/provided:al2023 "$REGISTRY/$REPO:bootstrap"
+            docker push "$REGISTRY/$REPO:bootstrap"
+          fi
+
+      - name: Apply
+        run: terraform apply -input=false -auto-approve

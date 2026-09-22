@@ -1,0 +1,61 @@
+name: video-processor-api build and deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - services/video-processor-api/**
+      - .github/workflows/_service-*.yaml
+      - .github/workflows/video-processor-api-build-and-deploy.yaml
+  workflow_dispatch:
+    inputs:
+      deploy_prod:
+        description: Also apply prod after staging (still gated by the production reviewer)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+  actions: read
+
+concurrency:
+  group: deploy-video-processor-api
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_service-ci.yaml
+    with:
+      service: video-processor-api
+    secrets: inherit
+
+  image:
+    needs: ci
+    uses: ./.github/workflows/_service-image.yaml
+    with:
+      service: video-processor-api
+      image: video-processor-api
+
+  staging:
+    needs: image
+    uses: ./.github/workflows/_service-deploy.yaml
+    with:
+      service: video-processor-api
+      short_name: api
+      environment: staging
+      gh_environment: staging
+      image_tag: ${{ needs.image.outputs.image_tag }}
+    secrets: inherit
+
+  prod:
+    needs: [image, staging]
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_prod
+    uses: ./.github/workflows/_service-deploy.yaml
+    with:
+      service: video-processor-api
+      short_name: api
+      environment: prod
+      gh_environment: production
+      image_tag: ${{ needs.image.outputs.image_tag }}
+    secrets: inherit

@@ -1,0 +1,35 @@
+name: video-processor-auth PR check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - services/video-processor-auth/**
+      - .golangci.yml
+      - .github/workflows/_service-ci.yaml
+      - .github/workflows/video-processor-auth-pr-check.yaml
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_service-ci.yaml
+    with:
+      service: video-processor-auth
+    secrets: inherit
+
+  images-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Verify every Lambda and the migrate image build
+        working-directory: services/video-processor-auth
+        run: |
+          for fn in signup login authorizer; do
+            docker buildx build --platform linux/arm64 --target lambda --build-arg LAMBDA_NAME=$fn -t check-$fn .
+          done
+          docker buildx build --target migrate -t check-migrate .

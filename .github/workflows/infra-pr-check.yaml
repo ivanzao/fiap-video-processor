@@ -1,0 +1,94 @@
+name: infra PR check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - infra/**
+      - scripts/validate-dashboards.py
+      - .github/workflows/infra-pr-check.yaml
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  AWS_REGION: us-east-1
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.10"
+      - run: terraform fmt -check -recursive infra
+      - name: Validate every root
+        run: |
+          for root in staging prod; do
+            (cd infra/environments/$root && terraform init -backend=false -input=false && terraform validate)
+          done
+      - name: Staged apply targets still exist
+        run: |
+          for target in $(grep -o 'module\.infra\.module\.[a-z_]*' .github/workflows/_terraform-apply.yaml | sort -u); do
+            leaf=${target##*.}
+            grep -q "^module \"$leaf\"" infra/modules/main.tf || { echo "target $target has no module \"$leaf\" in infra/modules/main.tf"; exit 1; }
+          done
+      - run: python3 scripts/validate-dashboards.py
+      - name: Module tests
+        run: |
+          for module in $(find infra/modules -type d -name tests -exec dirname {} \;); do
+            (cd "$module" && terraform init -input=false && terraform test)
+          done
+
+  plan:
+    needs: static
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        root: [staging, prod]
+    defaults:
+      run:
+        working-directory: infra/environments/${{ matrix.root }}
+    env:
+      TF_VAR_ghcr_token: ${{ secrets.GHCR_TOKEN }}
+      TF_VAR_mailersend_token: ${{ secrets.MAILERSEND_TOKEN }}
+      TF_VAR_mail_from: ${{ vars.MAIL_FROM }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.10"
+      - name: Plan
+        run: |
+          BUCKET="video-processor-tfstate-$(aws sts get-caller-identity --query Account --output text)"
+          if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+            echo "State bucket $BUCKET does not exist yet; run infra-deploy once before plans are meaningful." | tee plan.txt
+            exit 0
+          fi
+          terraform init -input=false -backend-config="bucket=${BUCKET}"
+          terraform plan -input=false -no-color 2>&1 | tee plan.txt
+      - uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'infra/environments/${{ matrix.root }}/plan.txt';
+            const plan = fs.existsSync(path) ? fs.readFileSync(path, 'utf8') : 'terraform init failed before plan ran; see the job log.';
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner, repo: context.repo.repo,
+              body: '## Terraform plan: ${{ matrix.root }}\n```\n' + plan.slice(0, 50000) + '\n```'
+            });

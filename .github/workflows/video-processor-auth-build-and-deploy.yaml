@@ -1,0 +1,90 @@
+name: video-processor-auth build and deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - services/video-processor-auth/**
+      - .github/workflows/_service-ci.yaml
+      - .github/workflows/_service-image.yaml
+      - .github/workflows/_lambda-deploy.yaml
+      - .github/workflows/video-processor-auth-build-and-deploy.yaml
+  workflow_dispatch:
+    inputs:
+      deploy_prod:
+        description: Also apply prod after staging (still gated by the production reviewer)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+  actions: read
+
+concurrency:
+  group: deploy-video-processor-auth
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_service-ci.yaml
+    with:
+      service: video-processor-auth
+    secrets: inherit
+
+  signup:
+    needs: ci
+    uses: ./.github/workflows/_service-image.yaml
+    with:
+      service: video-processor-auth
+      image: video-processor-auth-signup
+      target: lambda
+      build_args: LAMBDA_NAME=signup
+      platforms: linux/arm64
+
+  login:
+    needs: ci
+    uses: ./.github/workflows/_service-image.yaml
+    with:
+      service: video-processor-auth
+      image: video-processor-auth-login
+      target: lambda
+      build_args: LAMBDA_NAME=login
+      platforms: linux/arm64
+
+  authorizer:
+    needs: ci
+    uses: ./.github/workflows/_service-image.yaml
+    with:
+      service: video-processor-auth
+      image: video-processor-auth-authorizer
+      target: lambda
+      build_args: LAMBDA_NAME=authorizer
+      platforms: linux/arm64
+
+  migrate:
+    needs: ci
+    uses: ./.github/workflows/_service-image.yaml
+    with:
+      service: video-processor-auth
+      image: video-processor-auth-migrate
+      target: migrate
+
+  staging:
+    needs: [signup, login, authorizer, migrate]
+    uses: ./.github/workflows/_lambda-deploy.yaml
+    with:
+      environment: staging
+      gh_environment: staging
+      image_tag: ${{ needs.migrate.outputs.image_tag }}
+    secrets: inherit
+
+  prod:
+    needs: [migrate, staging]
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_prod
+    uses: ./.github/workflows/_lambda-deploy.yaml
+    with:
+      environment: prod
+      gh_environment: production
+      image_tag: ${{ needs.migrate.outputs.image_tag }}
+    secrets: inherit

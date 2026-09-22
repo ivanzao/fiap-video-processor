@@ -1,0 +1,21 @@
+name: video-processor-api PR check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - services/video-processor-api/**
+      - .golangci.yml
+      - .github/workflows/_service-ci.yaml
+      - .github/workflows/video-processor-api-pr-check.yaml
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_service-ci.yaml
+    with:
+      service: video-processor-api
+    secrets: inherit
