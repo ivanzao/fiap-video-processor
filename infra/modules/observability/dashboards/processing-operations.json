@@ -1,0 +1,498 @@
+{
+  "uid": "video-processor-processing",
+  "title": "Video Processor: Processing Operations",
+  "tags": [
+    "video-processor",
+    "business"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "editable": true,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Uploads solicitados (24h)",
+      "id": 1,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "targets": [
+        {
+          "expr": "(sum(increase(video_uploads_total{namespace=\"$namespace\"}[24h]))) or vector(0)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "0"
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Process Requests criadas (24h)",
+      "id": 2,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "targets": [
+        {
+          "expr": "(sum(increase(video_process_requests_total{namespace=\"$namespace\",status=\"PENDING\"}[24h]))) or vector(0)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "0"
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Concluídas (24h)",
+      "id": 3,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "targets": [
+        {
+          "expr": "(sum(increase(video_process_requests_total{namespace=\"$namespace\",status=\"COMPLETED\"}[24h]))) or vector(0)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "0"
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Falhas (24h)",
+      "id": 4,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "targets": [
+        {
+          "expr": "(sum(increase(video_process_requests_total{namespace=\"$namespace\",status=\"FAILED\"}[24h]))) or vector(0)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "0"
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Em andamento agora",
+      "id": 5,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "targets": [
+        {
+          "expr": "(sum(video_process_requests_total{namespace=\"$namespace\",status=\"PENDING\"}) - sum(video_process_requests_total{namespace=\"$namespace\",status=~\"COMPLETED|FAILED\"})) or vector(0)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "0"
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Frames extraídos (24h)",
+      "id": 6,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "targets": [
+        {
+          "expr": "(sum(increase(processing_frames_total{namespace=\"$namespace\"}[24h]))) or vector(0)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "0"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Transições de Process Request por Status (por segundo)",
+      "id": 7,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(video_process_requests_total{namespace=\"$namespace\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: transições/s",
+          "noValue": "0"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Executions por desfecho (por segundo)",
+      "id": 8,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "targets": [
+        {
+          "expr": "sum by (outcome) (rate(processing_executions_total{namespace=\"$namespace\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: exec/s",
+          "noValue": "0"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Duração de Execution concluída (p50 / p95)",
+      "id": 9,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(processing_duration_seconds_bucket{namespace=\"$namespace\",outcome=\"COMPLETED\"}[5m])))",
+          "refId": "A",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(processing_duration_seconds_bucket{namespace=\"$namespace\",outcome=\"COMPLETED\"}[5m])))",
+          "refId": "B",
+          "legendFormat": "p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "0"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Mensagens SQS por resultado (worker) (por segundo)",
+      "id": 10,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "targets": [
+        {
+          "expr": "sum by (result) (rate(sqs_messages_total{namespace=\"$namespace\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{result}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: msg/s",
+          "noValue": "0"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Réplicas do worker (KEDA)",
+      "id": 11,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "targets": [
+        {
+          "expr": "(kube_deployment_status_replicas_ready{namespace=\"$namespace\", deployment=\"video-processor-worker\"}) or vector(0)",
+          "refId": "A",
+          "legendFormat": "ready"
+        },
+        {
+          "expr": "(kube_horizontalpodautoscaler_spec_max_replicas{namespace=\"$namespace\", horizontalpodautoscaler=\"keda-hpa-video-processor-worker\"}) or vector(0)",
+          "refId": "B",
+          "legendFormat": "max"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Eventos do worker consumidos pela API (por segundo)",
+      "id": 12,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "targets": [
+        {
+          "expr": "sum by (event_type, result) (rate(video_inbound_events_total{namespace=\"$namespace\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{event_type}} {{result}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: eventos/s",
+          "noValue": "0"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Taxa de falha das Executions",
+      "id": 13,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 29
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "targets": [
+        {
+          "expr": "(sum(rate(processing_executions_total{namespace=\"$namespace\",outcome=\"FAILED\"}[15m])) / sum(rate(processing_executions_total{namespace=\"$namespace\"}[15m]))) or vector(0)",
+          "refId": "A",
+          "legendFormat": "FAILED / total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "0"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Tempo de mensagem até o ack (p95)",
+      "id": 14,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 29
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(sqs_message_duration_seconds_bucket{namespace=\"$namespace\",result=\"settled\"}[5m])))",
+          "refId": "A",
+          "legendFormat": "p95 settled"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "0"
+        }
+      }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Prometheus",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {
+          "text": "Prometheus",
+          "value": "Prometheus"
+        }
+      },
+      {
+        "name": "namespace",
+        "label": "Ambiente",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "query": "label_values(up{namespace=~\"video-processor-.*\"}, namespace)",
+        "refresh": 2,
+        "sort": 1,
+        "current": {
+          "text": "video-processor-staging",
+          "value": "video-processor-staging"
+        }
+      }
+    ]
+  }
+}

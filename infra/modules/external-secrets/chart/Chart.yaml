@@ -1,0 +1,5 @@
+apiVersion: v2
+name: eso-resources
+description: ClusterSecretStore shared by the application namespaces
+type: application
+version: 0.1.0

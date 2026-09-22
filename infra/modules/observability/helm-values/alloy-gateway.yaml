@@ -1,0 +1,73 @@
+controller:
+  type: deployment
+  replicas: 1
+
+alloy:
+  extraPorts:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+  configMap:
+    create: true
+    content: |
+      otelcol.receiver.otlp "default" {
+        grpc { endpoint = "0.0.0.0:4317" }
+        http { endpoint = "0.0.0.0:4318" }
+
+        output {
+          traces  = [otelcol.processor.k8sattributes.default.input]
+          metrics = [otelcol.processor.batch.default.input]
+        }
+      }
+
+      otelcol.processor.k8sattributes "default" {
+        pod_association {
+          source {
+            from = "resource_attribute"
+            name = "k8s.pod.ip"
+          }
+        }
+        pod_association {
+          source {
+            from = "connection"
+          }
+        }
+        extract {
+          metadata = ["k8s.namespace.name", "k8s.pod.name"]
+        }
+        output {
+          traces = [otelcol.processor.batch.default.input]
+        }
+      }
+
+      otelcol.processor.batch "default" {
+        output {
+          traces  = [otelcol.exporter.otlp.tempo.input]
+          metrics = [otelcol.exporter.prometheus.kps.input]
+        }
+      }
+
+      otelcol.exporter.otlp "tempo" {
+        client {
+          endpoint = "tempo.observability.svc.cluster.local:4317"
+          tls { insecure = true }
+        }
+      }
+
+      otelcol.exporter.prometheus "kps" {
+        forward_to = [prometheus.remote_write.kps.receiver]
+      }
+
+      prometheus.remote_write "kps" {
+        endpoint {
+          url = "http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090/api/v1/write"
+        }
+      }
+
+service:
+  enabled: true

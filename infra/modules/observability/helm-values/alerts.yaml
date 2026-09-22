@@ -1,0 +1,76 @@
+additionalPrometheusRulesMap:
+  video-processor:
+    groups:
+      - name: video-processor.app
+        interval: 30s
+        rules:
+          - alert: ApiHighErrorRate
+            expr: |
+              sum by (namespace) (rate(http_server_request_duration_seconds_count{namespace=~"video-processor-.*",status=~"5.."}[5m]))
+                / sum by (namespace) (rate(http_server_request_duration_seconds_count{namespace=~"video-processor-.*"}[5m]))
+                > 0.05
+            for: 5m
+            labels:
+              severity: critical
+              service: video-processor
+            annotations:
+              summary: "API em {{ $labels.namespace }} está retornando mais de 5% de 5xx (5m)"
+              description: "Verificar logs e traces da video-processor-api."
+
+          - alert: ApiHighLatency
+            expr: |
+              histogram_quantile(0.95,
+                sum by (namespace, le) (rate(http_server_request_duration_seconds_bucket{namespace=~"video-processor-.*"}[5m]))
+              ) > 1
+            for: 10m
+            labels:
+              severity: warning
+              service: video-processor
+            annotations:
+              summary: "p95 da API em {{ $labels.namespace }} acima de 1s (5m)"
+              description: "Avaliar CPU e memória dos pods e o tempo das queries no banco."
+
+          - alert: ExecutionsFailing
+            expr: |
+              sum by (namespace) (rate(processing_executions_total{namespace=~"video-processor-.*",outcome="FAILED"}[15m]))
+                / sum by (namespace) (rate(processing_executions_total{namespace=~"video-processor-.*"}[15m]))
+                > 0.5
+            for: 15m
+            labels:
+              severity: warning
+              service: video-processor
+            annotations:
+              summary: "Mais da metade das Executions em {{ $labels.namespace }} terminou em FAILED (15m)"
+              description: "Pode ser uma onda de Unprocessable Videos ou o ffmpeg falhando; verificar o motivo nos Process Results."
+
+          - alert: WorkerRetryStorm
+            expr: |
+              sum by (namespace) (rate(sqs_messages_total{namespace=~"video-processor-.*",result=~"retry|error"}[10m])) > 0.05
+            for: 10m
+            labels:
+              severity: warning
+              service: video-processor
+            annotations:
+              summary: "Worker em {{ $labels.namespace }} devolvendo mensagens à fila continuamente"
+              description: "Retryable Failures sustentadas: S3, SNS ou banco indisponíveis para o worker."
+
+          - alert: AppPodCrashLooping
+            expr: |
+              increase(kube_pod_container_status_restarts_total{namespace=~"video-processor-.*"}[15m]) > 2
+            for: 5m
+            labels:
+              severity: critical
+              service: video-processor
+            annotations:
+              summary: "Pod {{ $labels.pod }} reiniciou mais de 2 vezes em 15m"
+              description: "Container {{ $labels.container }} em {{ $labels.namespace }} está em CrashLoop."
+
+          - alert: AppTargetDown
+            expr: up{namespace=~"video-processor-.*"} == 0
+            for: 3m
+            labels:
+              severity: critical
+              service: video-processor
+            annotations:
+              summary: "Prometheus não consegue coletar {{ $labels.job }} ({{ $labels.instance }})"
+              description: "Scrape falhando por 3m: app fora do ar ou ServiceMonitor desconfigurado."
