@@ -1,0 +1,23 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: video-processor-auth-migrate
+  labels:
+    app: video-processor-auth-migrate
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: video-processor-auth-migrate
+    spec:
+      restartPolicy: OnFailure
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      containers:
+        - name: migrate
+          image: ghcr.io/ivanzao/video-processor-auth-migrate:latest
+          envFrom:
+            - secretRef:
+                name: video-processor-auth-secret
