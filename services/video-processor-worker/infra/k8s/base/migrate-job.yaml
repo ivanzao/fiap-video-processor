@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: video-processor-worker-migrate
+  labels:
+    app: video-processor-worker-migrate
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: video-processor-worker-migrate
+    spec:
+      restartPolicy: OnFailure
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      containers:
+        - name: migrate
+          image: ghcr.io/ivanzao/video-processor-worker:latest
+          args: ["migrate"]
+          envFrom:
+            - configMapRef:
+                name: video-processor-worker-config
+            - secretRef:
+                name: video-processor-worker-secret

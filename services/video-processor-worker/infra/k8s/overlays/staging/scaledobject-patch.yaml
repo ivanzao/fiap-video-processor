@@ -1,0 +1,3 @@
+- op: replace
+  path: /spec/triggers/0/metadata/queueURL
+  value: https://sqs.us-east-1.amazonaws.com/ACCOUNT_ID/video-processor-worker-inbox-staging

@@ -1,0 +1,16 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: video-processor-worker
+spec:
+  scaleTargetRef:
+    name: video-processor-worker
+  minReplicaCount: 1
+  maxReplicaCount: 6
+  triggers:
+    - type: aws-sqs-queue
+      metadata:
+        queueURL: set-by-overlay
+        queueLength: "2"
+        awsRegion: us-east-1
+        identityOwner: operator

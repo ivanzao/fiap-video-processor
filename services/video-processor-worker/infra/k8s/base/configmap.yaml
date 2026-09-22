@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: video-processor-worker-config
+data:
+  AWS_REGION: us-east-1
+  S3_BUCKET: set-by-overlay
+  SNS_TOPIC_ARN: set-by-overlay
+  SQS_QUEUE_URL: set-by-overlay
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy-gateway.observability.svc.cluster.local:4317
+  WORKER_CONCURRENCY: "2"
+  FFMPEG_THREADS: "1"
+  FRAME_RATE: "1"
+  MAX_ATTEMPTS: "3"
+  SQS_VISIBILITY_TIMEOUT: 5m
+  SQS_HEARTBEAT: 1m
+  WORK_DIR: /tmp

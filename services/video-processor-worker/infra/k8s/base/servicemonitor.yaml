@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: video-processor-worker
+  labels:
+    app: video-processor-worker
+spec:
+  jobLabel: app
+  selector:
+    matchLabels:
+      app: video-processor-worker
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
