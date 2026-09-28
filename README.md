@@ -1,8 +1,8 @@
 # FIAP X Video Processor
 
-[![api](https://sonarcloud.io/api/project_badges/measure?project=fiap-video-processor-api&metric=coverage)](https://sonarcloud.io/summary/new_code?id=fiap-video-processor-api)
-[![worker](https://sonarcloud.io/api/project_badges/measure?project=fiap-video-processor-worker&metric=coverage)](https://sonarcloud.io/summary/new_code?id=fiap-video-processor-worker)
-[![auth](https://sonarcloud.io/api/project_badges/measure?project=fiap-video-processor-auth&metric=coverage)](https://sonarcloud.io/summary/new_code?id=fiap-video-processor-auth)
+[![api](https://sonarcloud.io/api/project_badges/measure?project=fiap-video-processor-api&metric=coverage&token=8ea979f0b81aa074100e49d4b70da475f8a89065)](https://sonarcloud.io/summary/new_code?id=fiap-video-processor-api)
+[![worker](https://sonarcloud.io/api/project_badges/measure?project=fiap-video-processor-worker&metric=coverage&token=5122ea083116548352baa6a6e5f70a7e37d02a61)](https://sonarcloud.io/summary/new_code?id=fiap-video-processor-worker)
+[![auth](https://sonarcloud.io/api/project_badges/measure?project=fiap-video-processor-auth&metric=coverage&token=8a54043f78514c8d303b851dbca576aba33c49bd)](https://sonarcloud.io/summary/new_code?id=fiap-video-processor-auth)
 
 Plataforma que recebe vídeos de Users autenticados, extrai os frames de forma assíncrona e
 disponibiliza o resultado em um zip, notificando o User por e-mail ao final. Três unidades de
