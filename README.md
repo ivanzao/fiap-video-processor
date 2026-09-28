@@ -201,7 +201,8 @@ nomeados pela instrução que executam (`CreateVideo`, `ProcessVideo`, `ExecuteP
 - **Grafana**: três dashboards provisionados pelo Terraform (APM, Processing Operations, Errors).
 - **OpenTelemetry + Alloy + Tempo**: um span por request HTTP e por mensagem consumida, exportado
   por OTLP e consultável no Grafana.
-- **slog**: logs JSON estruturados.
+- **slog + Loki**: logs JSON estruturados; o Alloy lê os logs dos pods da aplicação pela API do
+  Kubernetes e os envia ao Loki, consultável no Grafana por `app` e `level`.
 
 ---
 
@@ -246,7 +247,7 @@ headers de identidade e faz polling da listagem a cada 5 segundos.
 - **Armazenamento**: Amazon S3 com URLs pré-assinadas, PostgreSQL 16 no RDS, uma instância por serviço
 - **Autenticação**: JWT HS256 emitido por Lambda, bcrypt, API Gateway HTTP API com Lambda authorizer
 - **Plataforma**: EKS, Kustomize, KEDA, External Secrets Operator, Helm via Terraform
-- **Observabilidade**: Prometheus, Grafana, OpenTelemetry, Alloy, Tempo
+- **Observabilidade**: Prometheus, Grafana, OpenTelemetry, Alloy, Tempo, Loki
 - **Testes**: testify, fakes escritos à mão, testcontainers-go (PostgreSQL, LocalStack, Mailpit), e2e em Go
 - **Qualidade**: golangci-lint v2, SonarCloud
 - **Infra e entrega**: Terraform, Docker, GitHub Actions, GHCR
@@ -304,8 +305,8 @@ Video sem retries. Sem o ffmpeg no PATH os testes que dependem dele são pulados
 
 Análise a cada PR e a cada push em `main` pelo workflow `_service-ci.yaml`, um projeto SonarCloud
 por serviço (`fiap-video-processor-api`, `-worker`, `-auth`). O quality gate exige 80% de
-cobertura em código novo e falha o PR. Ficam fora da contagem os `cmd/`, o `testinfra` e os e2e,
-que não têm lógica própria.
+cobertura em código novo e falha o PR. Ficam fora da contagem os `cmd/`, o `internal/app` (composition
+root), o `platform/system` (relógio e UUID), o `testinfra` e os e2e, que não têm lógica própria.
 
 ---
 

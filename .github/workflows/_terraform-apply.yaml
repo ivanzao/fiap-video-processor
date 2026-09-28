@@ -78,7 +78,7 @@ jobs:
       - name: Create the application buckets the lab policy keeps Terraform from reading
         run: |
           ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-          for BUCKET in "video-processor-${{ inputs.root }}-$ACCOUNT" "video-processor-tempo-${{ inputs.root }}-$ACCOUNT"; do
+          for BUCKET in "video-processor-${{ inputs.root }}-$ACCOUNT" "video-processor-tempo-${{ inputs.root }}-$ACCOUNT" "video-processor-loki-${{ inputs.root }}-$ACCOUNT"; do
             aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null || aws s3api create-bucket --bucket "$BUCKET" --region "$AWS_REGION"
           done
 

@@ -1,5 +1,5 @@
 variable "aws_region" {
-  description = "Region of the Tempo trace bucket"
+  description = "Region of the Tempo and Loki buckets"
   type        = string
 }
 
@@ -8,14 +8,25 @@ variable "tempo_bucket_name" {
   type        = string
 }
 
+variable "loki_bucket_name" {
+  description = "Globally unique bucket name for Loki log chunks and index"
+  type        = string
+}
+
 variable "manage_bucket" {
-  description = "Create the Tempo bucket with Terraform. Set to false where the account policy keeps the provider from reading buckets (AWS Academy); the bucket must then exist before apply"
+  description = "Create the Tempo and Loki buckets with Terraform. Set to false where the account policy keeps the provider from reading buckets (AWS Academy); the buckets must then exist before apply"
   type        = bool
   default     = true
 }
 
 variable "tempo_bucket_retention_days" {
   description = "Days before trace blocks expire in S3"
+  type        = number
+  default     = 7
+}
+
+variable "loki_bucket_retention_days" {
+  description = "Days before log chunks expire in S3"
   type        = number
   default     = 7
 }
@@ -48,6 +59,12 @@ variable "tempo_version" {
   description = "Tempo Helm chart version"
   type        = string
   default     = "1.24.4"
+}
+
+variable "loki_version" {
+  description = "Loki Helm chart version"
+  type        = string
+  default     = "6.55.0"
 }
 
 variable "alloy_version" {

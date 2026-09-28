@@ -110,11 +110,20 @@ jobs:
         run: |
           REGISTRY=${{ steps.ssm.outputs.account }}.dkr.ecr.$AWS_REGION.amazonaws.com
           aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$REGISTRY"
+          image() { echo "$REGISTRY/ghcr-video-processor-${{ inputs.environment }}/${{ github.repository_owner }}/$SERVICE-$1:${{ inputs.image_tag }}"; }
           for FN in signup login authorizer; do
-            IMAGE="$REGISTRY/ghcr-video-processor-${{ inputs.environment }}/${{ github.repository_owner }}/$SERVICE-$FN:${{ inputs.image_tag }}"
-            docker pull --platform linux/arm64 "$IMAGE" >/dev/null
+            docker pull --platform linux/arm64 "$(image $FN)" >/dev/null
+          done
+          # Lambda can take a while to see an image the pull-through cache has just stored.
+          for FN in signup login authorizer; do
+            IMAGE=$(image $FN)
             NAME=$(aws ssm get-parameter --name "$PREFIX/lambda/$FN-function-name" --query Parameter.Value --output text)
-            aws lambda update-function-code --function-name "$NAME" --image-uri "$IMAGE" --publish >/dev/null
+            for attempt in 1 2 3 4 5 6; do
+              aws lambda update-function-code --function-name "$NAME" --image-uri "$IMAGE" --publish >/dev/null && break
+              [ "$attempt" = 6 ] && exit 1
+              echo "image not visible to Lambda yet, retrying in 20s"
+              sleep 20
+            done
             aws lambda wait function-updated --function-name "$NAME"
             echo "$NAME -> $IMAGE"
           done

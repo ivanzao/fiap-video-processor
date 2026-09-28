@@ -1,0 +1,66 @@
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: s3
+    bucketNames:
+      chunks: ${loki_bucket}
+      ruler: ${loki_bucket}
+      admin: ${loki_bucket}
+    s3:
+      region: ${aws_region}
+      endpoint: s3.${aws_region}.amazonaws.com
+      s3forcepathstyle: false
+  schemaConfig:
+    configs:
+      - from: "2024-04-01"
+        store: tsdb
+        object_store: s3
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+
+singleBinary:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  persistence:
+    # Chunks go to S3; the scratch volume only holds the WAL and the compactor working set.
+    enabled: false
+  extraVolumes:
+    - name: storage
+      emptyDir:
+        sizeLimit: 2Gi
+  extraVolumeMounts:
+    - name: storage
+      mountPath: /var/loki
+
+# The canary is a DaemonSet (one pod per node) and the helm test depends on it; the pod budget of a
+# t3.medium has no room for either.
+lokiCanary:
+  enabled: false
+test:
+  enabled: false
+
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+
+gateway:
+  enabled: false
+
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false

@@ -34,6 +34,7 @@ cat <<BANNER
 ║    sum by (outcome) (rate(processing_executions_total[5m]))
 ║
 ║  Traces (Tempo): Explore → datasource Tempo → Search por service.name
+║  Logs (Loki):    Explore → datasource Loki → {app="video-processor-worker"} | json
 ║  Ctrl+C para encerrar
 ╚═══════════════════════════════════════════════════════════════════
 

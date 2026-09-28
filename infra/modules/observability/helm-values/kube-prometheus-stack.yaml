@@ -21,6 +21,11 @@ grafana:
       uid: tempo
       access: proxy
       url: http://tempo.observability.svc.cluster.local:3100
+    - name: Loki
+      type: loki
+      uid: loki
+      access: proxy
+      url: http://loki.observability.svc.cluster.local:3100
 
 prometheus:
   prometheusSpec:

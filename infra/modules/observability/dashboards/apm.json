@@ -118,7 +118,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m])))",
+          "expr": "(histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m]))) >= 0) or vector(0)",
           "refId": "A"
         }
       ],
@@ -154,7 +154,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m])))",
+          "expr": "(histogram_quantile(0.99, sum by (le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m]))) >= 0) or vector(0)",
           "refId": "A"
         }
       ],
@@ -190,17 +190,17 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m])))",
+          "expr": "(histogram_quantile(0.5, sum by (le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m]))) >= 0) or vector(0)",
           "refId": "A",
           "legendFormat": "p50"
         },
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m])))",
+          "expr": "(histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m]))) >= 0) or vector(0)",
           "refId": "B",
           "legendFormat": "p95"
         },
         {
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m])))",
+          "expr": "(histogram_quantile(0.99, sum by (le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m]))) >= 0) or vector(0)",
           "refId": "C",
           "legendFormat": "p99"
         }
@@ -415,7 +415,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le)(rate(sqs_message_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m])))",
+          "expr": "(histogram_quantile(0.95, sum by (le)(rate(sqs_message_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m]))) >= 0) or vector(0)",
           "refId": "A"
         }
       ]
@@ -451,7 +451,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum by (le)(rate(sqs_message_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m])))",
+          "expr": "(histogram_quantile(0.99, sum by (le)(rate(sqs_message_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m]))) >= 0) or vector(0)",
           "refId": "A"
         }
       ]
@@ -484,17 +484,17 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum by (le)(rate(sqs_message_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m])))",
+          "expr": "(histogram_quantile(0.5, sum by (le)(rate(sqs_message_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m]))) >= 0) or vector(0)",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum by (le)(rate(sqs_message_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m])))",
+          "expr": "(histogram_quantile(0.95, sum by (le)(rate(sqs_message_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m]))) >= 0) or vector(0)",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, sum by (le)(rate(sqs_message_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m])))",
+          "expr": "(histogram_quantile(0.99, sum by (le)(rate(sqs_message_duration_seconds_bucket{namespace=\"$namespace\",job=\"$service\"}[5m]))) >= 0) or vector(0)",
           "legendFormat": "p99",
           "refId": "C"
         }

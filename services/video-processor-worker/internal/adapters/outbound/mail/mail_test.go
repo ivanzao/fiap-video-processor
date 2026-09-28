@@ -2,6 +2,7 @@ package mail_test
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -52,4 +53,15 @@ func TestMailerSendNotifierReportsRejectedRequests(t *testing.T) {
 	err := n.Send(t.Context(), video.Notification{To: "ana@example.com", Outcome: video.OutcomeFailed})
 
 	assert.ErrorContains(t, err, "429")
+}
+
+func TestSMTPNotifierReportsUnreachableServers(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	addr := l.Addr().String()
+	require.NoError(t, l.Close())
+
+	err = mail.NewSMTPNotifier(addr, "noreply@fiapx.example").Send(t.Context(), video.Notification{To: "ana@example.com", Outcome: video.OutcomeCompleted})
+
+	assert.ErrorContains(t, err, "smtp: send")
 }

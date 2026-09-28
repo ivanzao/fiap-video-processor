@@ -9,14 +9,14 @@ de serviços fica em `modules/locals.tf`: adicionar um serviço é uma entrada n
 
 | Camada | Recursos |
 |---|---|
-| Plataforma | VPC própria, EKS 1.34 (`t3.medium`, 3 nós em cada ambiente; um só não comporta os add-ons, que ocupam os 17 slots de pods de um `t3.medium`), ECR pull-through para o GHCR, External Secrets, KEDA, observabilidade (kube-prometheus-stack, Tempo, Alloy, dashboards e alertas) |
+| Plataforma | VPC própria, EKS 1.34 (`t3.medium`, 3 nós em cada ambiente; um só não comporta os add-ons, que ocupam os 17 slots de pods de um `t3.medium`), ECR pull-through para o GHCR, External Secrets, KEDA, observabilidade (kube-prometheus-stack, Tempo, Loki, Alloy, dashboards e alertas) |
 | Aplicação | namespace, uma instância RDS PostgreSQL por serviço com credenciais no Secrets Manager, bucket S3 com CORS e lifecycle de 7 dias em `uploads/`, tópicos SNS e filas SQS com DLQ, três Lambdas, API Gateway com authorizer, VPC Link e NLB, parâmetros SSM |
 
 Global na conta: o bucket de state (uma chave por ambiente) e o repositório ECR da imagem
 placeholder das Lambdas, que o pipeline cria e semeia quando não existem.
 
 Toda identidade AWS é a `LabRole` via IMDS ([ADR 0004](../docs/adr/0004-labrole-via-imds.md)).
-No laboratório o pipeline também cria os buckets de Videos e de traces antes do apply, porque a
+No laboratório o pipeline também cria os buckets de Videos, de traces e de logs antes do apply, porque a
 política do AWS Academy impede o provider de lê-los; em outra conta basta `manage_buckets = true`
 e o Terraform os cria.
 

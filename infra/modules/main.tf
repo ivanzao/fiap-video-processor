@@ -48,6 +48,7 @@ module "observability" {
   source            = "./observability"
   aws_region        = var.aws_region
   tempo_bucket_name = "${local.name}-tempo-${var.environment}-${local.account_id}"
+  loki_bucket_name  = "${local.name}-loki-${var.environment}-${local.account_id}"
   manage_bucket     = var.manage_buckets
 
   depends_on = [module.eks]

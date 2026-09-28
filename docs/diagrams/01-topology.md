@@ -55,6 +55,7 @@ flowchart LR
     subgraph Obs["Observabilidade"]
         Alloy["Alloy (OTLP)"]:::obs
         Tempo["Tempo"]:::obs
+        Loki["Loki"]:::obs
         Prom["Prometheus"]:::obs
         Grafana["Grafana"]:::obs
     end
@@ -92,7 +93,9 @@ flowchart LR
     Worker --> Alloy
     Alloy --> Tempo
     Alloy --> Prom
+    Alloy -->|"logs dos pods"| Loki
     Grafana --> Tempo
+    Grafana --> Loki
     Grafana --> Prom
 ```
 
