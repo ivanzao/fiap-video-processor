@@ -44,7 +44,6 @@ jobs:
               - 'infra/**'
               - 'scripts/validate-dashboards.py'
               - '.github/workflows/infra-pr-check.yaml'
-              - '.github/workflows/pr-check.yaml'
 
   api:
     needs: detect
