@@ -1,12 +1,7 @@
 name: infra PR check
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - infra/**
-      - scripts/validate-dashboards.py
-      - .github/workflows/infra-pr-check.yaml
+  workflow_call:
 
 permissions:
   contents: read

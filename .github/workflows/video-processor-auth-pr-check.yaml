@@ -1,13 +1,7 @@
 name: video-processor-auth PR check
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - services/video-processor-auth/**
-      - .golangci.yml
-      - .github/workflows/_service-ci.yaml
-      - .github/workflows/video-processor-auth-pr-check.yaml
+  workflow_call:
 
 permissions:
   contents: read

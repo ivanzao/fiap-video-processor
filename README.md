@@ -358,11 +358,13 @@ acesso estão em [`infra/README.md`](infra/README.md).
 
 | Workflow | Trigger | O que faz |
 |---|---|---|
-| `video-processor-<svc>-pr-check.yaml` | PR que toca o serviço | vet, golangci-lint, testes com `-race` e integração, SonarCloud com quality gate |
+| `pr-check.yaml` | todo PR para `main` | detecta o que o PR toca, chama os checks abaixo só para essas partes e fecha no job `gate`, o check obrigatório da branch protection |
+| `video-processor-<svc>-pr-check.yaml` | chamado pelo `pr-check` quando o PR toca o serviço | vet, golangci-lint, testes com `-race` e integração, SonarCloud com quality gate |
+| `infra-pr-check.yaml` | chamado pelo `pr-check` quando o PR toca `infra/` | `fmt`, `validate` das duas raízes, `terraform test` dos módulos, `plan` por raiz comentado no PR |
 | `video-processor-<svc>-build-and-deploy.yaml` | push em `main` que toca o serviço | CI → imagem no GHCR (`sha-<short>`) → deploy em `staging`; `prod` só por disparo manual com `deploy_prod` |
-| `infra-pr-check.yaml` | PR que toca `infra/` | `fmt`, `validate` das duas raízes, `terraform test` dos módulos, `plan` por raiz comentado no PR |
 | `infra-deploy.yaml` | push em `main` que toca `infra/` | `apply` de `staging`; `prod` só por disparo manual com `deploy_prod` |
 
+A `main` é protegida: todo merge passa por PR com o `gate` verde, sem push direto nem force-push.
 O push em `main` só aplica o `staging`. O `prod` roda quando o workflow é disparado à mão com a
 opção `deploy_prod`, e mesmo assim para no GitHub Environment `production`, que exige aprovação.
 O deploy de um serviço espera terminar qualquer `infra deploy` do mesmo ambiente que esteja em

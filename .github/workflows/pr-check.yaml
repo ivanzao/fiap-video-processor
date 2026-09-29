@@ -1,0 +1,96 @@
+name: PR check
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      worker: ${{ steps.filter.outputs.worker }}
+      auth: ${{ steps.filter.outputs.auth }}
+      infra: ${{ steps.filter.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
+        id: filter
+        with:
+          filters: |
+            shared: &shared
+              - '.golangci.yml'
+              - '.github/workflows/_service-ci.yaml'
+              - '.github/workflows/pr-check.yaml'
+            api:
+              - *shared
+              - 'services/video-processor-api/**'
+              - '.github/workflows/video-processor-api-pr-check.yaml'
+            worker:
+              - *shared
+              - 'services/video-processor-worker/**'
+              - '.github/workflows/video-processor-worker-pr-check.yaml'
+            auth:
+              - *shared
+              - 'services/video-processor-auth/**'
+              - '.github/workflows/video-processor-auth-pr-check.yaml'
+            infra:
+              - 'infra/**'
+              - 'scripts/validate-dashboards.py'
+              - '.github/workflows/infra-pr-check.yaml'
+
+  api:
+    needs: detect
+    if: needs.detect.outputs.api == 'true'
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/video-processor-api-pr-check.yaml
+    secrets: inherit
+
+  worker:
+    needs: detect
+    if: needs.detect.outputs.worker == 'true'
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/video-processor-worker-pr-check.yaml
+    secrets: inherit
+
+  auth:
+    needs: detect
+    if: needs.detect.outputs.auth == 'true'
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/video-processor-auth-pr-check.yaml
+    secrets: inherit
+
+  infra:
+    needs: detect
+    if: needs.detect.outputs.infra == 'true'
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: ./.github/workflows/infra-pr-check.yaml
+    secrets: inherit
+
+  gate:
+    needs: [detect, api, worker, auth, infra]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every triggered check passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "$RESULTS"
+          for result in $RESULTS; do
+            case "$result" in success|skipped) ;; *) exit 1 ;; esac
+          done
